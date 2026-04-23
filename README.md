@@ -1,0 +1,156 @@
+# Lefisc CST API
+
+API em FastAPI que consulta o **CST PIS/COFINS** de um NCM no site
+[lefisc.com.br](https://www.lefisc.com.br/) (Legislação Fiscal) e retorna:
+
+- **1** quando o NCM possui alíquota de PIS/COFINS (tributado)
+- **4** quando não possui (alíquota zero / monofásico)
+
+## Regra de negócio
+
+A coluna PIS/COFINS do Lefisc às vezes tem mais de uma seção
+(Contribuinte, Não Contribuinte, Importador, Industrial...). A API sempre usa:
+
+```
+Não Contribuinte → Comerciante atacadista ou varejista
+```
+
+E dentro desse trecho:
+
+- Se houver qualquer alíquota > 0 → **CST 1**
+- Se for "Alíquota Zero", "Isento", "Monofásico" ou só 0,00% → **CST 4**
+
+## Estrutura
+
+```
+lefisc-cst-api/
+├── app/
+│   ├── __init__.py
+│   ├── main.py          ← FastAPI + endpoints
+│   ├── config.py        ← Settings (.env)
+│   ├── models.py        ← Pydantic request/response
+│   ├── parser.py        ← Regras de parsing (sem Playwright) - testável
+│   ├── scraper.py       ← Playwright: login + busca no Lefisc
+│   └── service.py       ← Cache + orquestração
+├── tests/
+│   └── test_parser.py   ← Testes unitários do parser
+├── requirements.txt
+├── .env.example
+├── .gitignore
+└── README.md
+```
+
+## Setup local
+
+```bash
+# 1) Clonar e entrar
+cd lefisc-cst-api
+
+# 2) Criar venv
+python -m venv .venv
+# Windows:
+.venv\Scripts\activate
+# Linux/Mac:
+source .venv/bin/activate
+
+# 3) Instalar dependências
+pip install -r requirements.txt
+python -m playwright install chromium
+
+# 4) Configurar credenciais
+cp .env.example .env
+# Edite .env com LEFISC_USERNAME e LEFISC_PASSWORD
+
+# 5) Rodar
+python -m app.main
+# ou
+uvicorn app.main:app --reload
+```
+
+API sobe em `http://127.0.0.1:8000` — docs Swagger em
+`http://127.0.0.1:8000/docs`.
+
+## Endpoints
+
+### `GET /cst/{ncm}`
+
+```bash
+curl http://127.0.0.1:8000/cst/48219000
+```
+
+Resposta:
+
+```json
+{
+  "ncm": "4821.90.00",
+  "cst": 1,
+  "possui_pis_cofins": true,
+  "descricao": "-Outras",
+  "aliquota_pis_cumulativo": "0,65%",
+  "aliquota_cofins_cumulativo": "3,00%",
+  "aliquota_pis_nao_cumulativo": "1,65%",
+  "aliquota_cofins_nao_cumulativo": "7,6%",
+  "raw_text": "Alíquotas do PIS e da COFINS: ...",
+  "trecho_relevante": "..."
+}
+```
+
+### `GET /health`
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+### `POST /cache/clear`
+
+Limpa o cache em memória — útil se você atualizou alíquotas no Lefisc
+e quer forçar re-consulta.
+
+## Testes
+
+```bash
+pytest -q
+```
+
+Os testes do parser (`tests/test_parser.py`) não dependem de Playwright
+nem de rede — validam a regra de negócio isoladamente.
+
+## Migração para Claude Code
+
+Este projeto foi prototipado no Cowork. Para continuar o desenvolvimento
+sério no Claude Code:
+
+1. **Mover a pasta para um local de trabalho**
+   ```bash
+   mv lefisc-cst-api ~/projetos/
+   cd ~/projetos/lefisc-cst-api
+   ```
+
+2. **Inicializar Git**
+   ```bash
+   git init
+   git add .
+   git commit -m "chore: estrutura inicial da API"
+   ```
+
+3. **Abrir no Claude Code**
+   ```bash
+   claude
+   ```
+
+4. **Primeiros passos no Claude Code**
+   - Ajustar seletores de login quando tiver as credenciais reais
+     (rodar uma vez com `HEADLESS=false` pra ver o fluxo)
+   - Capturar amostras reais de HTML/texto de NCMs variados (usar
+     `raw_text` do response) e adicionar como fixtures em `tests/`
+   - Adicionar tratamento de expiração de sessão (re-login automático)
+   - Opcional: persistir cache em SQLite pra não perder entre restarts
+
+## TODOs conhecidos
+
+- [ ] Confirmar seletores exatos do formulário de login (primeira execução)
+- [ ] Confirmar estrutura da tabela de resultado — a lógica atual assume
+      colunas na ordem `NCM | DESCRIÇÃO | IPI | PIS/COFINS | DEMAIS INFO`
+- [ ] Adicionar retry com backoff em caso de sessão expirada
+- [ ] Capturar screenshots em erros (já existe pra login, falta pra busca)
+- [ ] Rate limiting interno (Lefisc pode banir IP se consultar demais)
