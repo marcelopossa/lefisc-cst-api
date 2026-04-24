@@ -4,6 +4,11 @@ Testes unitários do parser (sem Playwright / sem rede).
 Rodar:
     pytest -q
 """
+import json
+from pathlib import Path
+
+import pytest
+
 from app.parser import (
     calcular_confianca,
     extrair_aliquotas,
@@ -12,6 +17,8 @@ from app.parser import (
     tem_formato_abcd,
     tem_pis_cofins,
 )
+
+FIXTURES_PATH = Path(__file__).parent / "fixtures.json"
 
 
 # ---------------------------------------------------------------------------
@@ -235,3 +242,37 @@ def test_texto_generico_curto_mantem_alta_confianca():
     confianca, motivo = calcular_confianca(TEXTO_GENERICO_CURTO, trecho)
     assert confianca == "alta"
     assert motivo is None
+
+
+# ---------------------------------------------------------------------------
+# Caso 9 — Regressão contra fixtures reais capturados do Lefisc
+# Cada entrada em tests/fixtures.json valida o comportamento end-to-end do
+# parser em texto real. Roda sem rede (raw_text já está salvo).
+# ---------------------------------------------------------------------------
+def _carregar_fixtures():
+    data = json.loads(FIXTURES_PATH.read_text(encoding="utf-8"))
+    return [(f["ncm"], f) for f in data["fixtures"]]
+
+
+@pytest.mark.parametrize("ncm,fixture", _carregar_fixtures())
+def test_fixtures_reais_cst_bate(ncm, fixture):
+    trecho = extrair_trecho_relevante(fixture["raw_text"])
+    possui = tem_pis_cofins(trecho)
+    cst = 1 if possui else 4
+    assert cst == fixture["cst_esperado"], (
+        f"NCM {ncm}: CST={cst} mas esperado={fixture['cst_esperado']}. "
+        f"Tipo: {fixture['tipo']}. Obs: {fixture['observacoes']}"
+    )
+    assert possui == fixture["possui_pis_cofins_esperado"]
+
+
+@pytest.mark.parametrize("ncm,fixture", _carregar_fixtures())
+def test_fixtures_reais_confianca_bate(ncm, fixture):
+    trecho = extrair_trecho_relevante(fixture["raw_text"])
+    confianca, motivo = calcular_confianca(fixture["raw_text"], trecho)
+    assert confianca == fixture["confianca_esperada"], (
+        f"NCM {ncm}: confianca={confianca} mas esperado={fixture['confianca_esperada']}. "
+        f"Motivo do parser: {motivo!r}"
+    )
+    revisao_atual = confianca == "baixa"
+    assert revisao_atual == fixture["revisao_esperada"]

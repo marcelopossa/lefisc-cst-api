@@ -1,23 +1,136 @@
 {
-  "_comentario": "NCMs com CST correto confirmado manualmente. Usado para validar o parser e guiar refinamentos de regra.",
+  "_comentario": "Fixtures de regressão para o parser. raw_text capturado do Lefisc em 2026-04-24 via GET /cst/{ncm}. CSTs esperados validados manualmente pelo time. Usado pelo teste test_parser_fixtures_reais (sem rede).",
   "_campos": {
-    "ncm": "NCM de 8 dígitos (sem pontos/traços)",
-    "cst_esperado": "1 = tributado normal, 4 = alíquota zero/monofásico/isento",
-    "tipo": "simples | multiplas_secoes | monofasico | aliquota_zero | isento",
-    "descricao": "descrição livre do produto (ajuda identificar padrão)",
-    "raw_text": "texto bruto da célula PIS/COFINS capturado do Lefisc (preencher após consulta)",
-    "confianca_esperada": "alta | baixa (opcional — preencher se quiser testar o scoring)",
-    "observacoes": "qualquer detalhe relevante sobre a regra aplicada"
+    "ncm": "NCM 8 dígitos sem formatação",
+    "ncm_formatado": "NCM xxxx.xx.xx como o Lefisc retorna",
+    "cst_esperado": "1 = tributado | 4 = alíquota zero/monofásico",
+    "confianca_esperada": "alta | baixa",
+    "revisao_esperada": "bool — se confianca_esperada=baixa",
+    "possui_pis_cofins_esperado": "espelho de cst_esperado (1↔True, 4↔False)",
+    "tipo": "categoria do cenário — só informativo",
+    "raw_text": "texto bruto da célula PIS/COFINS capturado do Lefisc",
+    "observacoes": "nota livre sobre o caso"
   },
   "fixtures": [
     {
       "ncm": "48219000",
+      "ncm_formatado": "4821.90.00",
+      "descricao": "-Outras",
       "cst_esperado": 1,
-      "tipo": "simples",
-      "descricao": "Etiquetas de papel, impressas",
-      "raw_text": "",
       "confianca_esperada": "alta",
-      "observacoes": "Regime Cumulativo 0,65%/3,00% + Não Cumulativo 1,65%/7,6% — tributado normalmente"
+      "revisao_esperada": false,
+      "possui_pis_cofins_esperado": true,
+      "tipo": "simples_tributado",
+      "raw_text": "Alíquotas do PIS e da COFINS:\n\nRegime Cumulativo: 0,65% e 3,00%\nRegime Não Cumulativo: 1,65% e 7,6%\nSimples Nacional: Tributado Normalmente.\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.",
+      "observacoes": "Papel, tributação normal — caso canônico, texto com uma só seção"
+    },
+    {
+      "ncm": "90269090",
+      "ncm_formatado": "9026.90.90",
+      "descricao": "Outros",
+      "cst_esperado": 1,
+      "confianca_esperada": "alta",
+      "revisao_esperada": false,
+      "possui_pis_cofins_esperado": true,
+      "tipo": "simples_tributado",
+      "raw_text": "Alíquotas do PIS e da COFINS:\n\nRegime Cumulativo: 0,65% e 3,00%\nRegime Não Cumulativo: 1,65% e 7,6%\nSimples Nacional: Tributado Normalmente.\n\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável",
+      "observacoes": "Instrumento, tributação normal sem segmentação"
+    },
+    {
+      "ncm": "84148029",
+      "ncm_formatado": "8414.80.29",
+      "descricao": "Outros",
+      "cst_esperado": 1,
+      "confianca_esperada": "alta",
+      "revisao_esperada": false,
+      "possui_pis_cofins_esperado": true,
+      "tipo": "texto_generico_curto",
+      "raw_text": "Alíquotas do PIS e da COFINS:\n\nRegime Cumulativo: 0,65% e 3,00%\nRegime Não Cumulativo: 1,65% e 7,6%\nSimples Nacional: Tributado Normalmente.\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.",
+      "observacoes": "Texto curto sem 'Contribuinte'; Lefisc diz tributado normal, CST 1 correto"
+    },
+    {
+      "ncm": "27101931",
+      "ncm_formatado": "2710.19.31",
+      "descricao": "Sem aditivos",
+      "cst_esperado": 1,
+      "confianca_esperada": "alta",
+      "revisao_esperada": false,
+      "possui_pis_cofins_esperado": true,
+      "tipo": "texto_generico_curto",
+      "raw_text": "Alíquotas do PIS e da COFINS:\n\nRegime Cumulativo: 0,65% e 3,00%\nRegime Não Cumulativo: 1,65% e 7,6%\nSimples Nacional: Tributado Normalmente.\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.",
+      "observacoes": "Gasolina sem aditivos — raw_text idêntico ao 84148029 (texto genérico)"
+    },
+    {
+      "ncm": "30039099",
+      "ncm_formatado": "3003.90.99",
+      "descricao": "Outros",
+      "cst_esperado": 1,
+      "confianca_esperada": "baixa",
+      "revisao_esperada": true,
+      "possui_pis_cofins_esperado": true,
+      "tipo": "multiplas_secoes_sem_nao_contribuinte",
+      "raw_text": "Tributação Concentrada (Monofásica)\n\nAlíquotas de PIS e COFINS:\n\nA)Fabricante ou Importador (Fundamentação Legal: Lei nº 10.147, de 2000, art. 1º e art. 2º; LC nº 123, de 2006, art. 18, §4º-A)\n\n1.Regime Cumulativo: 2,10% e 9,90%\n2.Regime Não Cumulativo: 2,10% e 9,90%\n3.Simples Nacional: 2,10% e 9,90%\n\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.\n\nB)Demais pessoas jurídicas não enquadradas na condição de industrial ou de importador (atacadistas e varejistas)\n\n1.Regime Cumulativo: Alíquota Zero.\n2.Regime Não Cumulativo: Alíquota Zero.\n3.Simples Nacional: Vide anexo\n\na) Alíquota Zero: Conforme previsto na LC nº 123, de 2006, art. 18, §4º-A, desde 01 de janeiro de 2009, a tributação monofásica se aplica ao Simples Nacional.\nb) Tributado Integralmente: Posicionamento adotado pela RFB.\n\nObs.: A aplicação da letra \"a\" ou \"b\" é de opção exclusiva do assinante.\n\nNatureza da Receita: 201 (Tabela EFD-Contribuições: 4.3.10)\n\nC) Industrialização sob encomenda: a pessoa jurídica encomendante sujeita-se às alíquotas previstas no item A; as alíquotas das contribuições aplicáveis à pessoa jurídica executora da encomenda ficam reduzidas a 0 (zero). No entanto, se a executora da encomenda é optante pelo Simples Nacional, tributará normalmente no anexo II. (Fundamentação: Lei nº 10.833, de 2003, art. 25; LC nº 123, de 2006, art. 18)\n\nINDUSTRIALIZAÇÃO POR ENCOMENDA A PARTIR DE ABRIL/2026:\n\nREDUÇÃO LINEAR:\n\nA partir de 01/04/2026, conforme a LC nº 224/2025, haverá a redução linear dos incentivos fiscais, impactando diretamente as operações atualmente sujeitas à alíquota zero de PIS e COFINS.\n\nO que muda na prática: A alíquota zero deixa de existir integralmente e as receitas passam a ser tributadas em 10% da alíquota cheia do regime\n\nAssim, ficará:\n\n1. Regime Cumulativo: 0,065% e 0,3%\n2. Regime Não Cumulativo:  0,165% e 0,76%\n3. Simples Nacional: não aplica redução linear\n\nPonto importante: Essa nova tributação não gera direito a crédito, caso já não fosse permitido anteriormente\n\nNatureza da Receita: CONFORME A NOTA TÉCNICA Nº 012 2026, DEVERÁ CONTINUAR SENDO USADO O CST 06 – COM A NATUREZA JURIDICA MENCIONADA NA Tabela EFD-Contribuições: 4.3.13 (Para mais informações vide anexo)\n\nOBS: SOMENTE APLICA-SE A REDUÇÃO LINEAR SOMENTE NOS CASOS QUE POSSUEM ALÍQUOTA ZERO.",
+      "observacoes": "Medicamento: parser flagou review por não achar 'Não Contribuinte'"
+    },
+    {
+      "ncm": "84148021",
+      "ncm_formatado": "8414.80.21",
+      "descricao": "Turboalimentadores de ar, de peso inferior ou igual a 50 kg para motores das posições 84.07 ou 84.08, acionado pelos gases de escapamento dos mesmos",
+      "cst_esperado": 4,
+      "confianca_esperada": "baixa",
+      "revisao_esperada": true,
+      "possui_pis_cofins_esperado": false,
+      "tipo": "autopeca_monofasica",
+      "raw_text": "A) ENQUADRADO NOS ANEXOS I OU II DA LEI Nº 10.485/2002 (NOVOS)\n\n1) Fabricantes e Importadores: As pessoas jurídicas fabricantes e os importadores, relativamente às vendas dos produtos relacionados nos Anexos I e II da Lei nº 10.485/2002, nas vendas efetuadas para fabricante de veículos e máquinas relacionados no art. 1o da Lei nº 10.485/2002, ou de autopeças constantes dos Anexos I e II da mesma Lei, quando destinadas à fabricação de produtos neles relacionados ficam sujeitos à incidência da contribuição para o PIS/PASEP e da COFINS às alíquotas de: (Fundamentação Lei nº 10.485/2002, art. 3º, inciso I; LC nº 123/2006, art. 18, §4º-A)\n\nAlíquotas do PIS e da COFINS: (Tributação alíquota diferenciada para o Regime Cumulativo)\n\nRegime Cumulativo: 1,65% e 7,6%\nRegime Não Cumulativo: 1,65% e 7,6%\nSimples Nacional: Tributado Normalmente. (*)\n\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.\n\n (*) O entendimento da consultoria Lefisc é de que nesta situação a tributação no Simples Nacional ocorrerá no anexo II, pois não se trata de tributação monofásica, mas sim de alíquota diferenciada. (LC nº 123/2006, art. 18, §4º-A). No entanto, a RFB tem autuado contribuintes exigindo também a alíquota diferenciada para as empresas do Simples Nacional (Solução de Consulta Cosit nº 99077, de 19 de junho de 2017).\n\n2) Fabricantes e Importadores: As pessoas jurídicas fabricantes e os importadores, relativamente às vendas dos produtos relacionados nos Anexos I e II da Lei nº 10.485/2002, nas vendas efetuadas para comerciante atacadista ou varejista ou para consumidores, ficam sujeitos à incidência da contribuição para o PIS/PASEP e da COFINS às alíquotas de: (Fundamentação Lei nº 10.485/2002, art. 3º, inciso II; LC nº 123/2006, art. 18, §4º-A)\n\nAlíquotas do PIS e da COFINS: (Tributação Concentrada/Monofásica)\n\nRegime Cumulativo: 2,3% e 10,8%\nRegime Não Cumulativo: 2,3% e 10,8%\nSimples Nacional: 2,3% e 10,8%\n\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.\n\n3) Comerciante atacadista ou varejista: Ficam reduzidas a 0% (zero por cento) as alíquotas da contribuição para o PIS/PASEP e da COFINS. (Exceto: a empresa comercial atacadista adquirente dos produtos resultantes da industrialização por encomenda equipara-se a estabelecimento industrial) (Fundamentação: Lei nº 10.485/2002, art. 3º, § 2º; LC nº 123/2006, art. 18, §4º-A)\n\nAlíquotas do PIS e da COFINS: (Tributação Concentrada/Monofásica – Revenda alíquota zero)\n\nRegime Cumulativo: Alíquota Zero.\nRegime Não Cumulativo: Alíquota Zero.\nSimples Nacional: Alíquota Zero.\n\nNatureza da Receita: 003 (Tabela EFD-Contribuições 4.3.10)\n\nB) DEMAIS SITUAÇÕES (inclusive usados)\n\nAlíquotas do PIS e da COFINS:\n\nRegime Cumulativo: 0,65% e 3,00%\nRegime Não Cumulativo: 1,65% e 7,6%\nSimples Nacional: Tributado Normalmente.\n\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.",
+      "observacoes": "Autopeça monofásica: item 3 'Comerciante atacadista ou varejista:' tem alíquota zero"
+    },
+    {
+      "ncm": "84149039",
+      "ncm_formatado": "8414.90.39",
+      "descricao": "Outras",
+      "cst_esperado": 4,
+      "confianca_esperada": "baixa",
+      "revisao_esperada": true,
+      "possui_pis_cofins_esperado": false,
+      "tipo": "autopeca_monofasica",
+      "raw_text": "Caixas de ventilação para veículos autopropulsados, classificadas no código 8414.90.39\n\nA) ENQUADRADO NOS ANEXOS I OU II DA LEI Nº 10.485/2002 (NOVOS)\n\n1) Fabricantes e Importadores: As pessoas jurídicas fabricantes e os importadores, relativamente às vendas dos produtos relacionados nos Anexos I e II da Lei nº 10.485/2002, nas vendas efetuadas para fabricante de veículos e máquinas relacionados no art. 1o da Lei nº 10.485/2002, ou de autopeças constantes dos Anexos I e II da mesma Lei, quando destinadas à fabricação de produtos neles relacionados ficam sujeitos à incidência da contribuição para o PIS/PASEP e da COFINS às alíquotas de: (Fundamentação Lei nº 10.485/2002, art. 3º, inciso I; LC nº 123/2006, art. 18, §4º-A)\n\nAlíquotas do PIS e da COFINS: (Tributação alíquota diferenciada para o Regime Cumulativo)\n\nRegime Cumulativo: 1,65% e 7,6%\nRegime Não Cumulativo: 1,65% e 7,6%\nSimples Nacional: Tributado Normalmente. (*)\n\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.\n\n(*) O entendimento da consultoria Lefisc é de que nesta situação a tributação no Simples Nacional ocorrerá no anexo II, pois não se trata de tributação monofásica, mas sim de alíquota diferenciada. (LC nº 123/2006, art. 18, §4º-A). No entanto, a RFB tem autuado contribuintes exigindo também a alíquota diferenciada para as empresas do Simples Nacional (Solução de Consulta Cosit nº 99077, de 19 de junho de 2017).\n\n2) Fabricantes e Importadores: As pessoas jurídicas fabricantes e os importadores, relativamente às vendas dos produtos relacionados nos Anexos I e II da Lei nº 10.485/2002, nas vendas efetuadas para comerciante atacadista ou varejista ou para consumidores, ficam sujeitos à incidência da contribuição para o PIS/PASEP e da COFINS às alíquotas de: (Fundamentação Lei nº 10.485/2002, art. 3º, inciso II; LC nº 123/2006, art. 18, §4º-A)\n\nAlíquotas do PIS e da COFINS: (Tributação Concentrada/Monofásica)\n\nRegime Cumulativo: 2,3% e 10,8%\nRegime Não Cumulativo: 2,3% e 10,8%\nSimples Nacional: 2,3% e 10,8%\n\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.\n\n3) Comerciante atacadista ou varejista: Ficam reduzidas a 0% (zero por cento) as alíquotas da contribuição para o PIS/PASEP e da COFINS. (Exceto: a empresa comercial atacadista adquirente dos produtos resultantes da industrialização por encomenda equipara-se a estabelecimento industrial) (Fundamentação: Lei nº 10.485/2002, art. 3º, § 2º; LC nº 123/2006, art. 18, §4º-A)\n\nAlíquotas do PIS e da COFINS: (Tributação Concentrada/Monofásica – Revenda alíquota zero)\n\nRegime Cumulativo: Alíquota Zero.\nRegime Não Cumulativo: Alíquota Zero.\nSimples Nacional: Alíquota Zero.\n\nNatureza da Receita: 003 (Tabela EFD-Contribuições 4.3.10)\n\nB) DEMAIS SITUAÇÕES (inclusive usados)\n\nAlíquotas do PIS e da COFINS:\n\nRegime Cumulativo: 0,65% e 3,00%\nRegime Não Cumulativo: 1,65% e 7,6%\nSimples Nacional: Tributado Normalmente.\n\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.",
+      "observacoes": "Caixa ventilação — mesmo padrão do 84148021"
+    },
+    {
+      "ncm": "87089100",
+      "ncm_formatado": "8708.91.00",
+      "descricao": "--Radiadores e suas partes",
+      "cst_esperado": 4,
+      "confianca_esperada": "baixa",
+      "revisao_esperada": true,
+      "possui_pis_cofins_esperado": false,
+      "tipo": "autopeca_monofasica",
+      "raw_text": "A) ENQUADRADO NOS ANEXOS I OU II DA LEI Nº 10.485/2002 (NOVOS)\n\n1) Fabricantes e Importadores: As pessoas jurídicas fabricantes e os importadores, relativamente às vendas dos produtos relacionados nos Anexos I e II da Lei nº 10.485/2002, nas vendas efetuadas para fabricante de veículos e máquinas relacionados no art. 1o da Lei nº 10.485/2002, ou de autopeças constantes dos Anexos I e II da mesma Lei, quando destinadas à fabricação de produtos neles relacionados ficam sujeitos à incidência da contribuição para o PIS/PASEP e da COFINS às alíquotas de: (Fundamentação Lei nº 10.485/2002, art. 3º, inciso I; LC nº 123/2006, art. 18, §4º-A)\n\nAlíquotas do PIS e da COFINS: (Tributação alíquota diferenciada para o Regime Cumulativo)\n\n1.Regime Cumulativo: 1,65% e 7,6%\n2.Regime Não Cumulativo: 1,65% e 7,6%\n3.Simples Nacional: Tributado Normalmente. (*)\n\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.\n\n (*) O entendimento da consultoria Lefisc é de que nesta situação a tributação no Simples Nacional ocorrerá no anexo II, pois não se trata de tributação monofásica, mas sim de alíquota diferenciada. (LC nº 123/2006, art. 18, §4º-A). No entanto, a RFB tem autuado contribuintes exigindo também a alíquota diferenciada para as empresas do Simples Nacional (Solução de Consulta Cosit nº 99077, de 19 de junho de 2017).\n\n2) Fabricantes e Importadores: As pessoas jurídicas fabricantes e os importadores, relativamente às vendas dos produtos relacionados nos Anexos I e II da Lei nº 10.485/2002, nas vendas efetuadas para comerciante atacadista ou varejista ou para consumidores, ficam sujeitos à incidência da contribuição para o PIS/PASEP e da COFINS às alíquotas de: (Fundamentação Lei nº 10.485/2002, art. 3º, inciso II; LC nº 123/2006, art. 18, §4º-A)\n\nAlíquotas do PIS e da COFINS: (Tributação Concentrada/Monofásica)\n\n1.Regime Cumulativo: 2,3% e 10,8%\n2.Regime Não Cumulativo: 2,3% e 10,8%\n3.Simples Nacional: 2,3% e 10,8%\n\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.\n\n3) Comerciante atacadista ou varejista: Ficam reduzidas a 0% (zero por cento) as alíquotas da contribuição para o PIS/PASEP e da COFINS. (Exceto: a empresa comercial atacadista adquirente dos produtos resultantes da industrialização por encomenda equipara-se a estabelecimento industrial) (Fundamentação: Lei nº 10.485/2002, art. 3º, § 2º; LC nº 123/2006, art. 18, §4º-A)\n\nAlíquotas do PIS e da COFINS: (Tributação Concentrada/Monofásica – Revenda alíquota zero)\n\n1.Regime Cumulativo: Alíquota Zero.\n2.Regime Não Cumulativo: Alíquota Zero.\n3.Simples Nacional: Alíquota Zero.\n\nNatureza da Receita: 003 (Tabela EFD-Contribuições 4.3.10)\n\nB) DEMAIS SITUAÇÕES (inclusive usados)\n\nAlíquotas do PIS e da COFINS:\n\nRegime Cumulativo: 0,65% e 3,00%\nRegime Não Cumulativo: 1,65% e 7,6%\nSimples Nacional: Tributado Normalmente.\n\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.",
+      "observacoes": "Radiador de autopeça monofásica"
+    },
+    {
+      "ncm": "22030000",
+      "ncm_formatado": "2203.00.00",
+      "descricao": "Cervejas de malte.",
+      "cst_esperado": 4,
+      "confianca_esperada": "baixa",
+      "revisao_esperada": true,
+      "possui_pis_cofins_esperado": false,
+      "tipo": "formato_abcd_varejista",
+      "raw_text": "A) REGRA GERAL (VENDA PARA DEMAIS PESSOAS JURÍDICAS)\n\n(Fundamentação: Lei nº 13.097, de 2015, art. 25; Decreto nº 8.442, de 2015, art. 17)\n\nAlíquotas do PIS e da COFINS:\n\nRegime Cumulativo: 2,32% e 10,68%\nRegime Não Cumulativo: 2,32% e 10,68%\nSimples Nacional: Tributado Normalmente.\n\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.\n\nB) Venda para pessoa jurídica varejista ou Consumidor Final efetuada por não varejista\n\n(Fundamentação: Lei nº 13.097, de 2015, art. 25, § 1º; Decreto nº 8.442, de 2015, art. 20)\n\nAlíquotas do PIS e da COFINS:\n\nRegime Cumulativo: 1,86% e 8,54%\nRegime Não Cumulativo: 1,86% e 8,54%\nSimples Nacional: Tributado Normalmente.\n\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída\n\nC) VENDA EFETUADA POR PESSOA JURÍDICA VAREJISTA\n\n(Conceito de varejista - a pessoa jurídica cuja receita decorrente da venda de bens e serviços a consumidor final no ano-calendário imediatamente anterior ao da operação houver sido igual ou superior a 75% (setenta e cinco por cento) de sua receita total de venda de bens e serviços no mesmo período, depois de excluídos os impostos e contribuições incidentes sobre a venda. Decreto nº 8.442, de 2015, art. 2º, inciso III)\n\n(Fundamentação: Lei nº 13.097, de 2015, art. 28; Decreto nº 8.442, de 2015, art. 22)\n\nAlíquotas do PIS e da COFINS:\n\nRegime Cumulativo: Alíquota Zero.\nRegime Não Cumulativo: Alíquota Zero.\nSimples Nacional: Alíquota Zero.\n\nNatureza da Receita: 918 (Tabela EFD-Contribuições 4.3.13)\n\nD) INDUSTRIALIZAÇÃO POR ENCOMENDA\n\nAlíquotas a serem aplicadas pela pessoa jurídica executora da encomenda.\n\n(Fundamentação: Lei nº 13.097, de 2015, art. 25, § 3º; Decreto nº 8.442, de 2015, art. 18)\n\nAlíquotas do PIS e da COFINS:\n\nRegime Cumulativo: 1,65% e 7,6%\nRegime Não Cumulativo: 1,65% e 7,6%\nSimples Nacional: Tributado Normalmente.\n\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.\n\nNota: No caso de produção de chopes e cervejas especiais, há uma redução nas alíquotas para o fabricante:\n\nVolume total de produção em litros de cervejas e chopes especiais, considerando a produção acumulada no ano-calendário anterior: Até 5.000.000: Redução de alíquota: 20%\nVolume total de produção em litros de cervejas e chopes especiais, considerando a produção acumulada no ano-calendário anterior: Acima de 5.000.000 até 10.000.000: Redução de alíquota: 10%\n\nCerveja especial - a cerveja que possuir 75% (setenta e cinco por cento) ou mais de malte de cevada, em peso, sobre o extrato primitivo, como fonte de açúcares;\n\nChope especial - a cerveja especial não submetida a processo de pasteurização para o envase\n\n(Fundamentação: Decreto nº 8.442, de 2015, art. 2º, art. 21, anexo II)",
+      "observacoes": "Cerveja: formato A)/B)/C)/D) com seção C 'VENDA EFETUADA POR PJ VAREJISTA → Alíquota Zero'"
+    },
+    {
+      "ncm": "73102990",
+      "ncm_formatado": "7310.29.90",
+      "descricao": "Outros",
+      "cst_esperado": 4,
+      "confianca_esperada": "baixa",
+      "revisao_esperada": true,
+      "possui_pis_cofins_esperado": false,
+      "tipo": "formato_abcd_com_ponto",
+      "raw_text": "A. Enquadrados como máquinas e implementos (novos)\n\n1) fabricantes e Importadores: As pessoas jurídicas fabricantes e as importadoras de máquinas e implementos nos códigos 7310.29:\n\nAlíquotas do PIS e da COFINS: (Tributação Concentrada/Monofásica)\n\n1.Regime Cumulativo: 2% e 9,6%\n2.Regime Não Cumulativo: 2% e 9,6%\n3.Simples Nacional: 2% e 9,6%\n\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.\n(Fundamentação: Lei nº 10.485/2004, art. 1º, art. 6; LC nº 123/2006, art. 18, §4).\n\n2) Comerciante atacadista ou varejista: Ficam reduzidas a 0% (zero por cento) as alíquotas da contribuição para o PIS/PASEP e da COFINS. (Exceto: a empresa comercial atacadista adquirente dos produtos resultantes da industrialização por encomenda equipara-se a estabelecimento industrial) (Fundamentação: Lei nº 10.485/2002, art. 3º, § 2º; LC nº 123/2006, art. 18, §4º).\n\nAlíquotas do PIS e da COFINS: (Tributação Concentrada/Monofásica – Revenda alíquota zero)\n\n1.Regime Cumulativo: Alíquota Zero.\n2.Regime Não Cumulativo: Alíquota Zero.\n3.Simples Nacional: Alíquota Zero.\n\nNatureza da Receita: 003 (Tabela EFD-Contribuições 4.3.10)\n\nB. DEMAIS SITUAÇÕES (inclusive usados)\n\nAlíquotas do PIS e da COFINS:\n\nRegime Cumulativo: 0,65% e 3,00%\nRegime Não Cumulativo: 1,65% e 7,6%\nSimples Nacional: Tributado Normalmente.\n\nNatureza da Receita: Não há natureza da receita para fins de escrituração da EFD-Contribuições nas operações de saída tributável.",
+      "observacoes": "Máquina/implemento: formato 'A.' / 'B.' (ponto, não parêntese)"
     }
   ]
 }
