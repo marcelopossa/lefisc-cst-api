@@ -95,6 +95,38 @@ Resposta:
 }
 ```
 
+### `POST /cst/batch`
+
+Consulta vários NCMs em uma chamada. Falhas individuais não abortam o
+batch — o item vem com `sucesso=false` e a mensagem de erro.
+
+```bash
+curl -X POST http://127.0.0.1:8000/cst/batch \
+  -H "Content-Type: application/json" \
+  -d '{"ncms": ["48219000", "22030000", "84148021"]}'
+```
+
+Resposta:
+
+```json
+{
+  "total": 3,
+  "sucessos": 3,
+  "falhas": 0,
+  "acertos_alta_confianca": 1,
+  "casos_para_revisao": 2,
+  "resultados": [
+    { "ncm_consultado": "48219000", "sucesso": true, "resultado": { ... } },
+    { "ncm_consultado": "22030000", "sucesso": true, "resultado": { ... } },
+    { "ncm_consultado": "84148021", "sucesso": true, "resultado": { ... } }
+  ]
+}
+```
+
+As consultas são serializadas internamente (Lefisc usa sessão única), então
+o tempo total ≈ `N × ~3s` em cache miss. Cache hit é instantâneo.
+Limite: 500 NCMs por request.
+
 ### `GET /health`
 
 ```bash

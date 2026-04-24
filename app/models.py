@@ -49,3 +49,40 @@ class ErrorResponse(BaseModel):
 
     error: str
     detail: Optional[str] = None
+
+
+class BatchRequest(BaseModel):
+    """Request do endpoint batch — aceita lista de NCMs."""
+
+    ncms: list[str] = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        description="Lista de NCMs (completos ou incompletos, com ou sem formatação)",
+    )
+
+
+class BatchItem(BaseModel):
+    """Resultado individual dentro de um batch."""
+
+    ncm_consultado: str = Field(..., description="NCM como foi enviado no request")
+    sucesso: bool = Field(..., description="True se a consulta deu certo")
+    resultado: Optional[CSTResponse] = Field(None, description="Resposta quando sucesso=True")
+    erro: Optional[str] = Field(None, description="Mensagem de erro quando sucesso=False")
+
+
+class BatchResponse(BaseModel):
+    """Resposta agregada do endpoint batch."""
+
+    total: int = Field(..., description="Total de NCMs no request")
+    sucessos: int = Field(..., description="Quantos foram consultados com sucesso")
+    falhas: int = Field(..., description="Quantos falharam (NCM inválido, timeout, etc)")
+    acertos_alta_confianca: int = Field(
+        ..., description="Sucessos com confianca='alta' (sem necessidade de revisão)"
+    )
+    casos_para_revisao: int = Field(
+        ..., description="Sucessos com confianca='baixa' (precisam revisão manual)"
+    )
+    resultados: list[BatchItem] = Field(
+        ..., description="Um item por NCM, na mesma ordem do request"
+    )
