@@ -17,3 +17,9 @@ test-results/
 login_debug.png
 ncm_debug.png
 pytest-cache-files-*/
+
+# Cache SQLite (persistente, mas não deve ir pro repo)
+cache.db
+cache.db-journal
+cache.db-wal
+cache.db-shm

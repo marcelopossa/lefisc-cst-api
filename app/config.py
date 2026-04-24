@@ -22,9 +22,9 @@ class Settings(BaseSettings):
     headless: bool = True
     browser_timeout_ms: int = 30000
 
-    # Cache
+    # Cache (SQLite persistente)
     cache_ttl_seconds: int = 86400
-    cache_max_size: int = 1000
+    cache_db_path: str = "cache.db"
 
 
 settings = Settings()

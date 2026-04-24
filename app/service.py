@@ -13,8 +13,7 @@ import asyncio
 import logging
 import re
 
-from cachetools import TTLCache
-
+from app.cache import SQLiteCache
 from app.config import settings
 from app.models import CSTResponse
 from app.parser import calcular_confianca
@@ -22,9 +21,9 @@ from app.scraper import NCMResult, scraper
 
 logger = logging.getLogger(__name__)
 
-# Cache em memória, chave = NCM normalizado
-_cache: TTLCache = TTLCache(
-    maxsize=settings.cache_max_size, ttl=settings.cache_ttl_seconds
+# Cache persistente em SQLite, chave = NCM normalizado
+_cache = SQLiteCache(
+    db_path=settings.cache_db_path, ttl_seconds=settings.cache_ttl_seconds
 )
 _cache_lock = asyncio.Lock()
 
@@ -80,6 +79,4 @@ async def consultar_cst(ncm: str) -> CSTResponse:
 
 def limpar_cache() -> int:
     """Esvazia o cache e retorna quantas entradas foram removidas."""
-    n = len(_cache)
-    _cache.clear()
-    return n
+    return _cache.clear()
