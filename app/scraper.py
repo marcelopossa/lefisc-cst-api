@@ -49,6 +49,8 @@ class NCMResult:
     pis_cofins_texto: str  # Texto bruto da célula PIS/COFINS inteira
     trecho_relevante: str  # "Não Contribuinte > Comerciante atac./varej."
     possui_pis_cofins: bool
+    ipi_texto: Optional[str] = None  # Conteúdo da célula IPI
+    linha_completa_texto: str = ""  # NCM + DESCRIÇÃO + IPI + PIS/COFINS (sem DEMAIS INFORMAÇÕES)
     aliquota_pis_cumulativo: Optional[str] = None
     aliquota_cofins_cumulativo: Optional[str] = None
     aliquota_pis_nao_cumulativo: Optional[str] = None
@@ -189,13 +191,19 @@ class LefiscScraper:
         return await self._extrair_resultado(page, ncm)
 
     async def _extrair_resultado(self, page: Page, ncm_consultado: str) -> NCMResult:
-        """Extrai dados da linha mais específica da tabela de resultado."""
+        """Extrai dados da linha mais específica da tabela de resultado.
+
+        Além da linha escolhida (usada na decisão CST), coleta *todas* as
+        linhas válidas da tabela (inclui 'Ex 01', 'Ex 02' etc) para compor
+        o `linha_completa_texto` — útil para auditoria manual.
+        """
         rows = page.locator("table tr")
         total = await rows.count()
         if total == 0:
             raise ValueError(f"Nenhum resultado encontrado para NCM {ncm_consultado}")
 
-        melhor_linha = None
+        linhas_coletadas: list[dict] = []
+        melhor_idx = -1
         melhor_score = -1
 
         for i in range(total):
@@ -207,7 +215,15 @@ class LefiscScraper:
 
             ncm_cell = (await cells.nth(0).inner_text()).strip()
             desc_cell = (await cells.nth(1).inner_text()).strip()
+            ipi_cell = (await cells.nth(2).inner_text()).strip()
             pis_cell = (await cells.nth(3).inner_text()).strip()
+
+            linhas_coletadas.append({
+                "ncm": ncm_cell,
+                "descricao": desc_cell,
+                "ipi_texto": ipi_cell,
+                "pis_cofins_texto": pis_cell,
+            })
 
             # Prioriza linha com NCM formatado xxxx.xx.xx (8 dígitos)
             score = 0
@@ -220,24 +236,37 @@ class LefiscScraper:
 
             if score > melhor_score:
                 melhor_score = score
-                melhor_linha = {
-                    "ncm": ncm_cell,
-                    "descricao": desc_cell,
-                    "pis_cofins_texto": pis_cell,
-                }
+                melhor_idx = len(linhas_coletadas) - 1
 
-        if melhor_linha is None:
+        if melhor_idx < 0:
             raise ValueError(f"Não foi possível extrair dados para NCM {ncm_consultado}")
 
+        melhor_linha = linhas_coletadas[melhor_idx]
         texto_pc = melhor_linha["pis_cofins_texto"]
+        ipi_cell = melhor_linha["ipi_texto"]
         trecho_relevante = extrair_trecho_relevante(texto_pc) or texto_pc
         aliquotas = extrair_aliquotas(trecho_relevante)
+
+        # Monta bloco com todas as linhas (sem a coluna "DEMAIS INFORMAÇÕES")
+        blocos = []
+        for idx, linha in enumerate(linhas_coletadas, start=1):
+            blocos.append(
+                f"--- Linha {idx} ---\n"
+                f"NCM: {linha['ncm']}\n"
+                f"DESCRIÇÃO: {linha['descricao']}\n"
+                f"IPI: {linha['ipi_texto']}\n"
+                f"PIS/COFINS:\n{linha['pis_cofins_texto']}"
+            )
+        linha_completa = "\n\n".join(blocos)
+
         return NCMResult(
             ncm=melhor_linha["ncm"],
             descricao=melhor_linha["descricao"],
             pis_cofins_texto=texto_pc,
             trecho_relevante=trecho_relevante,
             possui_pis_cofins=tem_pis_cofins(trecho_relevante),
+            ipi_texto=ipi_cell,
+            linha_completa_texto=linha_completa,
             **aliquotas,
         )
 

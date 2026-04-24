@@ -49,7 +49,7 @@ def _resultado_para_response(ncm_normalizado: str, r: NCMResult) -> CSTResponse:
         aliquota_cofins_cumulativo=r.aliquota_cofins_cumulativo,
         aliquota_pis_nao_cumulativo=r.aliquota_pis_nao_cumulativo,
         aliquota_cofins_nao_cumulativo=r.aliquota_cofins_nao_cumulativo,
-        raw_text=r.pis_cofins_texto,
+        raw_text=r.linha_completa_texto or r.pis_cofins_texto,
         trecho_relevante=r.trecho_relevante,
     )
 

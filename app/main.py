@@ -1,10 +1,12 @@
 """
-API FastAPI: consulta CST por NCM no Lefisc.
+API FastAPI: consulta CST PIS/COFINS por NCM no Lefisc.
 
 Endpoints:
-- GET  /health          → status
-- GET  /cst/{ncm}       → retorna CST (1 ou 4) + dados auxiliares
-- POST /cache/clear     → esvazia o cache (útil pra debug)
+- GET  /health                → status
+- GET  /cst/{ncm}             → consulta individual: CST (1 ou 4) + dados auxiliares
+- POST /cst/batch             → consulta em lote (até 20 NCMs por request)
+- POST /cache/clear           → esvazia o cache SQLite
+- POST /cache/purge-expired   → remove apenas entradas expiradas do cache
 """
 from __future__ import annotations
 
@@ -74,22 +76,45 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Lefisc CST API",
     description=(
-        "Consulta o CST PIS/COFINS de um NCM no Lefisc. "
-        "Retorna 1 quando possui PIS/COFINS, 4 caso contrário."
+        "API que consulta o CST de PIS/COFINS de um NCM no site "
+        "[Lefisc](https://www.lefisc.com.br) via scraping autenticado (Playwright) "
+        "e devolve:\n\n"
+        "- **CST = 1** quando o NCM possui alíquota de PIS/COFINS > 0 (tributado);\n"
+        "- **CST = 4** quando é alíquota zero, monofásico ou isento.\n\n"
+        "A decisão usa o trecho **'Não Contribuinte → Comerciante atacadista ou varejista'** "
+        "da coluna PIS/COFINS do Lefisc.\n\n"
+        "Além do CST, cada resposta inclui:\n"
+        "- `confianca` (`alta` / `baixa`) + `revisao_necessaria` + `motivo_revisao` "
+        "quando o parser detecta ambiguidade;\n"
+        "- alíquotas cumulativo / não cumulativo de PIS e COFINS;\n"
+        "- `raw_text` com **todas** as linhas da tabela do Lefisc (linha principal + "
+        "linhas Ex 01, Ex 02…), contendo NCM, DESCRIÇÃO, IPI e PIS/COFINS — a coluna "
+        "'DEMAIS INFORMAÇÕES' é omitida.\n\n"
+        "**Cache**: respostas ficam em SQLite (sobrevive a restarts) com TTL configurável "
+        "e purge periódico. Use `POST /cache/clear` para forçar re-consulta."
     ),
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
 
-@app.get("/health")
+@app.get("/health", summary="Health check")
 async def health() -> dict:
+    """Retorna `{\"status\": \"ok\"}` quando a API está de pé."""
     return {"status": "ok"}
 
 
 @app.get(
     "/cst/{ncm}",
     response_model=CSTResponse,
+    summary="Consulta CST PIS/COFINS de um NCM",
+    description=(
+        "Consulta um único NCM no Lefisc e retorna o CST (1 ou 4), alíquotas "
+        "detectadas, flag de confiança, motivo de revisão (quando aplicável) e "
+        "o `raw_text` com todas as linhas da tabela do Lefisc. "
+        "Aceita NCM com ou sem formatação (ex: `48219000` ou `4821.90.00`). "
+        "Resultado fica em cache pelo TTL configurado."
+    ),
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def get_cst(
@@ -107,13 +132,17 @@ async def get_cst(
 @app.post(
     "/cst/batch",
     response_model=BatchResponse,
-    summary="Consulta CST de vários NCMs em uma só chamada",
+    summary="Consulta CST de vários NCMs em lote",
     description=(
-        "Recebe uma lista de NCMs e retorna um item por NCM. "
-        "Falhas individuais (NCM inválido, timeout) não abortam o batch — "
-        "o item correspondente vem com sucesso=false e a mensagem de erro. "
-        "As consultas são serializadas internamente pelo scraper (Lefisc "
-        "usa sessão única), então tempo total ≈ N × ~3s em cache miss."
+        "Recebe uma lista de **1 a 20 NCMs** e devolve um item por NCM na mesma ordem "
+        "do request. Falhas individuais (NCM inválido, timeout, sessão expirada) **não** "
+        "abortam o batch — o item correspondente vem com `sucesso=false` e a mensagem "
+        "de erro em `erro`. "
+        "As consultas são serializadas internamente pelo scraper (o Lefisc usa sessão "
+        "única), então o tempo total ≈ N × ~3s em cache miss, ou instantâneo quando "
+        "todos os NCMs já estão em cache. "
+        "A resposta agregada inclui contadores de sucesso/falha e de "
+        "`acertos_alta_confianca` vs `casos_para_revisao`, facilitando triagem."
     ),
 )
 async def post_cst_batch(req: BatchRequest) -> BatchResponse:
@@ -148,16 +177,31 @@ async def post_cst_batch(req: BatchRequest) -> BatchResponse:
     )
 
 
-@app.post("/cache/clear")
+@app.post(
+    "/cache/clear",
+    summary="Esvazia o cache (todas as entradas)",
+    description=(
+        "Remove **todas** as entradas do cache SQLite, forçando re-consulta no "
+        "Lefisc nas próximas chamadas. Útil após mudanças nos dados do Lefisc "
+        "ou para debug. Retorna `{\"removidos\": N}`."
+    ),
+)
 async def cache_clear() -> dict:
     removidos = limpar_cache()
     return {"removidos": removidos}
 
 
-@app.post("/cache/purge-expired")
+@app.post(
+    "/cache/purge-expired",
+    summary="Remove apenas entradas expiradas do cache",
+    description=(
+        "Varre o cache SQLite e remove só as entradas com TTL vencido. "
+        "Roda automaticamente em background a cada `CACHE_PURGE_INTERVAL_HORAS` "
+        "— este endpoint serve para disparar sob demanda. "
+        "Retorna `{\"removidos\": N}`."
+    ),
+)
 async def cache_purge_expired() -> dict:
-    """Remove só as entradas expiradas. Roda automaticamente a cada
-    CACHE_PURGE_INTERVAL_HORAS — este endpoint é útil pra disparar sob demanda."""
     removidos = purgar_expirados()
     return {"removidos": removidos}
 
