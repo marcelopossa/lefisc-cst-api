@@ -28,9 +28,16 @@ ALIQUOTA_ZERO_PATTERNS = [
 
 # Marcadores de seção na coluna PIS/COFINS
 SECAO_NAO_CONTRIBUINTE = re.compile(r"n[ãa]o\s+contribuinte", re.IGNORECASE)
+
+# Exige que "Comerciante atacadista ou varejista" seja SUJEITO de frase
+# (início de linha, opcionalmente precedido por "N)") e terminado por ":".
+# Evita match quando a expressão aparece como objeto — ex: "...vendas efetuadas
+# para comerciante atacadista ou varejista ou para consumidores..." em autopeças.
 SUBSECAO_COMERCIANTE = re.compile(
-    r"comerciante\s+atacadista\s+ou\s+varejista", re.IGNORECASE
+    r"(?:^|\n)\s*(?:\d+\)\s*)?comerciante\s+atacadista\s+ou\s+varejista\s*:",
+    re.IGNORECASE,
 )
+
 # Possíveis cabeçalhos que marcam fim/início de seção
 SECAO_HEADERS = re.compile(
     r"(contribuinte|n[ãa]o\s+contribuinte|importador|industrial|produtor|"
@@ -38,20 +45,78 @@ SECAO_HEADERS = re.compile(
     re.IGNORECASE,
 )
 
+# Formato alternativo do Lefisc em produtos monofásicos (ex: cerveja 2203):
+# seções rotuladas A), B), C), D)... onde a seção-alvo tem "VAREJISTA" no header.
+HEADER_ABCD = re.compile(r"^[A-G]\)\s+\S", re.MULTILINE)
+
+
+def tem_formato_abcd(texto: str) -> bool:
+    """Detecta o formato alternativo A)/B)/C)/D) com ao menos 2 seções."""
+    if not texto:
+        return False
+    return len(HEADER_ABCD.findall(texto)) >= 2
+
+
+def extrair_secao_abcd_varejista(texto: str) -> str | None:
+    """
+    Isola a seção A/B/C/D cujo header indica "VENDA EFETUADA POR … VAREJISTA"
+    (case-sensitive — o Lefisc usa caixa alta nesse rótulo). Retorna o bloco
+    completo dessa seção, do header até o próximo header A-G ou fim do texto.
+    Retorna None se o formato ou a seção não forem encontrados.
+    """
+    if not tem_formato_abcd(texto):
+        return None
+
+    headers = list(re.finditer(r"^([A-G])\)\s+([^\n]+)", texto, re.MULTILINE))
+    if not headers:
+        return None
+
+    alvo = None
+    for h in headers:
+        titulo = h.group(2)
+        # Header em caixa alta com VAREJISTA
+        if re.search(r"\bVAREJISTA\b", titulo):
+            alvo = h
+            break
+        # Fallback: "efetuada por ... varejista" sem negação "não"
+        if re.search(r"efetuada\s+por.*varejista", titulo, re.IGNORECASE) and \
+           not re.search(r"n[ãa]o\s+varejista", titulo, re.IGNORECASE):
+            alvo = h
+            break
+
+    if alvo is None:
+        return None
+
+    inicio = alvo.start()
+    proximo = next(
+        (h for h in headers if h.start() > alvo.start()), None
+    )
+    fim = proximo.start() if proximo else len(texto)
+    return texto[inicio:fim].strip()
+
 
 def extrair_trecho_relevante(texto: str) -> str:
     """
     Isola o trecho que deve ser usado na decisão CST.
 
     Regra:
-      1. Se houver seção "Não Contribuinte" → usa o trecho dentro dela.
-      2. Dentro desse trecho, se houver sub-rótulo "Comerciante atacadista
-         ou varejista" → usa só esse sub-trecho até o próximo cabeçalho.
-      3. Se nada disso existir → usa o texto inteiro (NCMs sem seccionamento).
+      1. Se o texto usa formato A/B/C/D com seção "VAREJISTA" → usa essa seção.
+         (produtos monofásicos tipo cerveja onde não há "Não Contribuinte")
+      2. Se houver seção "Não Contribuinte" → usa o trecho dentro dela.
+      3. Se houver sub-rótulo "Comerciante atacadista ou varejista:" como
+         sujeito de frase (início de linha, eventualmente após "N)") → usa
+         só esse sub-trecho até o próximo cabeçalho.
+      4. Se nada disso existir → usa o texto inteiro.
     """
     if not texto:
         return ""
 
+    # 1) Formato A/B/C/D com header "VAREJISTA"
+    secao_abcd = extrair_secao_abcd_varejista(texto)
+    if secao_abcd:
+        return secao_abcd
+
+    # 2) "Não Contribuinte" tradicional
     m = SECAO_NAO_CONTRIBUINTE.search(texto)
     if m:
         trecho = texto[m.end():]
@@ -59,6 +124,7 @@ def extrair_trecho_relevante(texto: str) -> str:
     else:
         trecho = texto
 
+    # 3) Sub-seção "Comerciante atacadista ou varejista:" como sujeito
     m2 = SUBSECAO_COMERCIANTE.search(trecho)
     if m2:
         sub = trecho[m2.end():]
@@ -69,17 +135,24 @@ def extrair_trecho_relevante(texto: str) -> str:
 
 
 def _cortar_ate_proximo_header(texto: str, permitir_filhos: bool) -> str:
-    """Corta o texto no próximo cabeçalho de seção encontrado."""
+    """Corta o texto no próximo cabeçalho de seção encontrado (inclui A/B/C/D)."""
+    # Próximo header textual
+    candidatos = []
     for m in SECAO_HEADERS.finditer(texto):
         header = m.group(0).lower()
         if permitir_filhos and "comerciante" in header:
             continue
-        return texto[: m.start()]
+        candidatos.append(m.start())
+    # Próximo header A/B/C/D (ex: "B) DEMAIS SITUAÇÕES")
+    for m in HEADER_ABCD.finditer(texto):
+        candidatos.append(m.start())
+    if candidatos:
+        return texto[: min(candidatos)]
     return texto
 
 
 def percentuais_positivos(texto: str) -> list[float]:
-    """Retorna lista de percentuais > 0 encontrados no texto."""
+    """Retorna lista de percentuais > 0 encontrados no texto (sem filtro de contexto)."""
     matches = re.findall(r"(\d+[.,]?\d*)\s*%", texto)
     valores = []
     for m in matches:
@@ -92,17 +165,42 @@ def percentuais_positivos(texto: str) -> list[float]:
     return valores
 
 
+def percentuais_tributacao(texto: str) -> list[float]:
+    """
+    Retorna apenas alíquotas declaradas em linhas "Regime Cumulativo:" ou
+    "Regime Não Cumulativo:". Ignora percentuais que aparecem em notas
+    explicativas (ex: "Conceito de varejista - ... 75% ...").
+    """
+    valores: list[float] = []
+    for m in re.finditer(
+        r"regime\s+(?:n[ãa]o\s+)?cumulativo[^:]*:\s*([^\n]+)",
+        texto,
+        re.IGNORECASE,
+    ):
+        linha = m.group(1)
+        for pct in re.findall(r"(\d+[.,]?\d*)\s*%", linha):
+            try:
+                v = float(pct.replace(",", "."))
+                if v > 0:
+                    valores.append(v)
+            except ValueError:
+                continue
+    return valores
+
+
 def tem_pis_cofins(texto: str) -> bool:
     """
     Decide se o trecho relevante indica tributação PIS/COFINS > 0.
 
-    Recebe JÁ o trecho isolado por `extrair_trecho_relevante`.
+    Recebe JÁ o trecho isolado por `extrair_trecho_relevante`. Usa apenas
+    percentuais das linhas de Regime (Cumulativo/Não Cumulativo) para evitar
+    que percentuais de notas explicativas causem falso positivo.
     """
     if not texto:
         return False
 
     texto_low = texto.lower()
-    percentuais_pos = percentuais_positivos(texto)
+    percentuais_pos = percentuais_tributacao(texto)
 
     for pat in ALIQUOTA_ZERO_PATTERNS:
         if re.search(pat, texto_low) and not percentuais_pos:
@@ -136,6 +234,14 @@ def calcular_confianca(
     if not texto_bruto:
         return "baixa", "Texto PIS/COFINS vazio"
 
+    # Formato A/B/C/D é sempre complexo — mesmo quando achamos a seção
+    # VAREJISTA corretamente, é prudente marcar como baixa para revisão.
+    if tem_formato_abcd(texto_bruto):
+        return (
+            "baixa",
+            "Formato alternativo A/B/C/D — seção VAREJISTA usada, revisar manualmente",
+        )
+
     if detectar_multiplas_secoes(texto_bruto):
         if not SECAO_NAO_CONTRIBUINTE.search(texto_bruto):
             return "baixa", "Múltiplas seções sem 'Não Contribuinte' identificada"
@@ -146,7 +252,7 @@ def calcular_confianca(
                 "'Comerciante atacadista ou varejista'",
             )
 
-    percentuais = percentuais_positivos(trecho_relevante)
+    percentuais = percentuais_tributacao(trecho_relevante)
     tem_zero = any(
         re.search(pat, trecho_relevante.lower()) for pat in ALIQUOTA_ZERO_PATTERNS
     )

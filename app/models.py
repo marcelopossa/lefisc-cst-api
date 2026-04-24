@@ -27,12 +27,19 @@ class CSTResponse(BaseModel):
     aliquota_cofins_cumulativo: Optional[str] = Field(None, description="Ex: '3,00%'")
     aliquota_pis_nao_cumulativo: Optional[str] = Field(None, description="Ex: '1,65%'")
     aliquota_cofins_nao_cumulativo: Optional[str] = Field(None, description="Ex: '7,6%'")
-    raw_text: Optional[str] = Field(None, description="Texto bruto da coluna PIS/COFINS (debug)")
+    raw_text: Optional[str] = Field(
+        None,
+        description=(
+            "Bloco completo da coluna PIS/COFINS do Lefisc — retornado em "
+            "todas as consultas para permitir auditoria e revisão manual."
+        ),
+    )
     trecho_relevante: Optional[str] = Field(
         None,
         description=(
-            "Trecho usado na decisão: 'Não Contribuinte > Comerciante "
-            "atacadista ou varejista' (debug)"
+            "Subtrecho usado na decisão CST (ex: 'Não Contribuinte > "
+            "Comerciante atacadista ou varejista' ou seção VAREJISTA em "
+            "formato A/B/C/D)."
         ),
     )
 
