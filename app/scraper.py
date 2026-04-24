@@ -247,17 +247,19 @@ class LefiscScraper:
         trecho_relevante = extrair_trecho_relevante(texto_pc) or texto_pc
         aliquotas = extrair_aliquotas(trecho_relevante)
 
-        # Monta bloco com todas as linhas (sem a coluna "DEMAIS INFORMAÇÕES")
-        blocos = []
-        for idx, linha in enumerate(linhas_coletadas, start=1):
-            blocos.append(
-                f"--- Linha {idx} ---\n"
-                f"NCM: {linha['ncm']}\n"
-                f"DESCRIÇÃO: {linha['descricao']}\n"
-                f"IPI: {linha['ipi_texto']}\n"
-                f"PIS/COFINS:\n{linha['pis_cofins_texto']}"
-            )
-        linha_completa = "\n\n".join(blocos)
+        # Monta tabela Markdown com todas as linhas (sem "DEMAIS INFORMAÇÕES").
+        # Dentro das células, quebras de linha viram <br> e pipes são escapados
+        # para manter a tabela Markdown válida.
+        def _cell(txt: str) -> str:
+            return (txt or "").replace("|", "\\|").replace("\n", "<br>").strip()
+
+        cabecalho = "| NCM | DESCRIÇÃO | IPI | PIS/COFINS |"
+        separador = "| --- | --- | --- | --- |"
+        linhas_md = [
+            f"| {_cell(l['ncm'])} | {_cell(l['descricao'])} | {_cell(l['ipi_texto'])} | {_cell(l['pis_cofins_texto'])} |"
+            for l in linhas_coletadas
+        ]
+        linha_completa = "\n".join([cabecalho, separador, *linhas_md])
 
         return NCMResult(
             ncm=melhor_linha["ncm"],

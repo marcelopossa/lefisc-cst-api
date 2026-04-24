@@ -30,9 +30,11 @@ class CSTResponse(BaseModel):
     raw_text: Optional[str] = Field(
         None,
         description=(
-            "Todas as linhas da tabela do Lefisc (linha principal + Ex 01, Ex 02 etc) "
-            "com colunas NCM, DESCRIÇÃO, IPI e PIS/COFINS — exclui 'DEMAIS INFORMAÇÕES'. "
-            "Retornado em todas as consultas para auditoria e revisão manual."
+            "Tabela em formato Markdown com todas as linhas retornadas pelo Lefisc "
+            "(linha principal + Ex 01, Ex 02 etc) e colunas NCM, DESCRIÇÃO, IPI e "
+            "PIS/COFINS — a coluna 'DEMAIS INFORMAÇÕES' é omitida. Quebras de linha "
+            "dentro das células são representadas como `<br>`. Retornado em todas as "
+            "consultas para auditoria e revisão manual."
         ),
     )
     trecho_relevante: Optional[str] = Field(
