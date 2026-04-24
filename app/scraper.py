@@ -36,6 +36,10 @@ from app.parser import (
 logger = logging.getLogger(__name__)
 
 
+class SessaoExpiradaError(RuntimeError):
+    """Lefisc redirecionou para o modal de login no meio da consulta."""
+
+
 @dataclass
 class NCMResult:
     """Resultado extraído da página do Lefisc."""
@@ -124,36 +128,65 @@ class LefiscScraper:
         """
         Consulta um NCM no Lefisc. Serializa chamadas concorrentes pra usar
         uma única aba (o site é stateful).
+
+        Se o Lefisc redirecionar para o modal de login no meio da consulta
+        (sessão expirada), força re-login e tenta uma segunda vez.
         """
         async with self._lock:
             await self.start()
-            await self._ensure_login()
+            for tentativa in range(2):
+                try:
+                    await self._ensure_login()
+                    return await self._consultar_ncm_uma_vez(ncm)
+                except SessaoExpiradaError:
+                    logger.warning(
+                        "Sessão do Lefisc expirada durante NCM %s — forçando re-login (tentativa %d)",
+                        ncm, tentativa + 2,
+                    )
+                    self._logged_in = False
+            # Se chegou aqui, os 2 tentativas viram sessão expirada — desiste
+            raise SessaoExpiradaError(
+                f"Sessão do Lefisc continua expirada após retry (NCM {ncm})"
+            )
 
-            assert self._page is not None
-            page = self._page
+    async def _consultar_ncm_uma_vez(self, ncm: str) -> NCMResult:
+        """Executa o fluxo de consulta sem retry. Lança SessaoExpiradaError
+        se detectar redirecionamento para o modal de login."""
+        assert self._page is not None
+        page = self._page
 
-            logger.info("Consultando NCM %s", ncm)
-            await page.goto(settings.lefisc_ncm_url, wait_until="commit")
-            await page.wait_for_timeout(1500)  # garante cookies após login SPA
-            logger.info("URL após goto NCM: %s", page.url)
-            await page.screenshot(path="ncm_debug.png")
+        logger.info("Consultando NCM %s", ncm)
+        await page.goto(settings.lefisc_ncm_url, wait_until="commit")
+        await page.wait_for_timeout(1500)  # garante cookies após login SPA
+        logger.info("URL após goto NCM: %s", page.url)
+        await page.screenshot(path="ncm_debug.png")
 
-            # Aguarda input (Vue pode demorar a renderizar)
-            search_input = page.locator("input[placeholder*='NCM' i]").first
+        # Detecta sessão expirada: modal de login reabriu
+        if await page.locator("#username").is_visible():
+            raise SessaoExpiradaError("Modal de login visível após goto NCM")
+
+        # Aguarda input (Vue pode demorar a renderizar)
+        search_input = page.locator("input[placeholder*='NCM' i]").first
+        try:
             await search_input.wait_for(state="visible", timeout=15000)
+        except Exception:
+            # Timeout no input é sintoma comum de sessão expirada
+            if await page.locator("#username").is_visible():
+                raise SessaoExpiradaError("Modal de login apareceu durante wait do input")
+            raise
 
-            # Botão "Buscar": get_by_role cobre <button>, <input type=submit>, role="button"
-            # (has-text('Buscar') não encontrava por não ser <button> semântico)
-            buscar_btn = page.get_by_role("button", name="Buscar", exact=True)
-            await buscar_btn.wait_for(state="visible", timeout=15000)
+        # Botão "Buscar": get_by_role cobre <button>, <input type=submit>, role="button"
+        # (has-text('Buscar') não encontrava por não ser <button> semântico)
+        buscar_btn = page.get_by_role("button", name="Buscar", exact=True)
+        await buscar_btn.wait_for(state="visible", timeout=15000)
 
-            await search_input.fill(ncm)
-            await buscar_btn.click()
+        await search_input.fill(ncm)
+        await buscar_btn.click()
 
-            # Aguarda a tabela ter pelo menos uma linha de dados
-            await page.wait_for_selector("table tr td", state="visible", timeout=30000)
+        # Aguarda a tabela ter pelo menos uma linha de dados
+        await page.wait_for_selector("table tr td", state="visible", timeout=30000)
 
-            return await self._extrair_resultado(page, ncm)
+        return await self._extrair_resultado(page, ncm)
 
     async def _extrair_resultado(self, page: Page, ncm_consultado: str) -> NCMResult:
         """Extrai dados da linha mais específica da tabela de resultado."""

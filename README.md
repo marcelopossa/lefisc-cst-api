@@ -125,7 +125,13 @@ Resposta:
 
 As consultas são serializadas internamente (Lefisc usa sessão única), então
 o tempo total ≈ `N × ~3s` em cache miss. Cache hit é instantâneo.
-Limite: 500 NCMs por request.
+
+**Limite: 20 NCMs por request** (protege contra pressão excessiva no Lefisc
+e risco de ban de IP). Se precisar consultar mais, divida em batches.
+
+Caso o Lefisc redirecione para o modal de login durante a consulta (sessão
+expirada), o scraper detecta, força re-login e repete a tentativa uma vez
+antes de retornar erro.
 
 ### `GET /health`
 

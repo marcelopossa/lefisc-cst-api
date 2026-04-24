@@ -57,8 +57,11 @@ class BatchRequest(BaseModel):
     ncms: list[str] = Field(
         ...,
         min_length=1,
-        max_length=500,
-        description="Lista de NCMs (completos ou incompletos, com ou sem formatação)",
+        max_length=20,
+        description=(
+            "Lista de NCMs (1 a 20 por request). Limite baixo para evitar "
+            "pressão excessiva no Lefisc e risco de ban de IP."
+        ),
     )
 
 
