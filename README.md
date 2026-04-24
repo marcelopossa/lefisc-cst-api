@@ -90,7 +90,7 @@ Resposta:
   "aliquota_cofins_cumulativo": "3,00%",
   "aliquota_pis_nao_cumulativo": "1,65%",
   "aliquota_cofins_nao_cumulativo": "7,6%",
-  "raw_text": "Alíquotas do PIS e da COFINS: ...",
+  "raw_text": "<table><thead><tr><th>NCM</th><th>DESCRIÇÃO</th><th>IPI</th><th>PIS/COFINS</th></tr></thead><tbody><tr><td>4821.90.00</td><td>-Outras</td><td>...</td><td>...</td></tr></tbody></table>",
   "trecho_relevante": "..."
 }
 ```
@@ -122,6 +122,11 @@ Resposta:
   ]
 }
 ```
+
+> **Formato do `raw_text`**: HTML (`<table>`) com as mesmas colunas e formatação
+> (negrito, `<br>`, links) do site do Lefisc. Excluímos a coluna "DEMAIS
+> INFORMAÇÕES" para reduzir tamanho. Útil para auditoria manual — qualquer
+> viewer/webhook consumer que renderize HTML mostra a tabela igualzinha ao site.
 
 As consultas são serializadas internamente (Lefisc usa sessão única), então
 o tempo total ≈ `N × ~3s` em cache miss. Cache hit é instantâneo.

@@ -218,11 +218,21 @@ class LefiscScraper:
             ipi_cell = (await cells.nth(2).inner_text()).strip()
             pis_cell = (await cells.nth(3).inner_text()).strip()
 
+            # HTML bruto de cada célula, para preservar <b>, <br>, <i>, <a> etc.
+            ncm_html = (await cells.nth(0).inner_html()).strip()
+            desc_html = (await cells.nth(1).inner_html()).strip()
+            ipi_html = (await cells.nth(2).inner_html()).strip()
+            pis_html = (await cells.nth(3).inner_html()).strip()
+
             linhas_coletadas.append({
                 "ncm": ncm_cell,
                 "descricao": desc_cell,
                 "ipi_texto": ipi_cell,
                 "pis_cofins_texto": pis_cell,
+                "ncm_html": ncm_html,
+                "descricao_html": desc_html,
+                "ipi_html": ipi_html,
+                "pis_html": pis_html,
             })
 
             # Prioriza linha com NCM formatado xxxx.xx.xx (8 dígitos)
@@ -247,19 +257,26 @@ class LefiscScraper:
         trecho_relevante = extrair_trecho_relevante(texto_pc) or texto_pc
         aliquotas = extrair_aliquotas(trecho_relevante)
 
-        # Monta tabela Markdown com todas as linhas (sem "DEMAIS INFORMAÇÕES").
-        # Dentro das células, quebras de linha viram <br> e pipes são escapados
-        # para manter a tabela Markdown válida.
-        def _cell(txt: str) -> str:
-            return (txt or "").replace("|", "\\|").replace("\n", "<br>").strip()
-
-        cabecalho = "| NCM | DESCRIÇÃO | IPI | PIS/COFINS |"
-        separador = "| --- | --- | --- | --- |"
-        linhas_md = [
-            f"| {_cell(l['ncm'])} | {_cell(l['descricao'])} | {_cell(l['ipi_texto'])} | {_cell(l['pis_cofins_texto'])} |"
+        # Monta tabela HTML com todas as linhas (sem "DEMAIS INFORMAÇÕES"),
+        # reaproveitando o inner_html de cada célula para preservar a
+        # formatação original do site (negrito, <br>, itálico, links, listas).
+        linhas_html = [
+            "<tr>"
+            f"<td>{l['ncm_html']}</td>"
+            f"<td>{l['descricao_html']}</td>"
+            f"<td>{l['ipi_html']}</td>"
+            f"<td>{l['pis_html']}</td>"
+            "</tr>"
             for l in linhas_coletadas
         ]
-        linha_completa = "\n".join([cabecalho, separador, *linhas_md])
+        linha_completa = (
+            "<table>"
+            "<thead><tr>"
+            "<th>NCM</th><th>DESCRIÇÃO</th><th>IPI</th><th>PIS/COFINS</th>"
+            "</tr></thead>"
+            "<tbody>" + "".join(linhas_html) + "</tbody>"
+            "</table>"
+        )
 
         return NCMResult(
             ncm=melhor_linha["ncm"],
