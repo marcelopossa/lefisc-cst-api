@@ -38,16 +38,17 @@ SUBSECAO_COMERCIANTE = re.compile(
     re.IGNORECASE,
 )
 
-# Possíveis cabeçalhos que marcam fim/início de seção
+# Possíveis cabeçalhos que marcam fim/início de seção — exige ":" após o rótulo
+# para evitar match em palavras adjetivas soltas (ex: "estabelecimento industrial").
 SECAO_HEADERS = re.compile(
     r"(contribuinte|n[ãa]o\s+contribuinte|importador|industrial|produtor|"
-    r"comerciante\s+atacadista\s+ou\s+varejista|natureza\s+da\s+receita)",
+    r"comerciante\s+atacadista\s+ou\s+varejista|natureza\s+da\s+receita)\s*:",
     re.IGNORECASE,
 )
 
-# Formato alternativo do Lefisc em produtos monofásicos (ex: cerveja 2203):
-# seções rotuladas A), B), C), D)... onde a seção-alvo tem "VAREJISTA" no header.
-HEADER_ABCD = re.compile(r"^[A-G]\)\s+\S", re.MULTILINE)
+# Formato alternativo do Lefisc em produtos monofásicos: seções rotuladas
+# "A) B) C) D)" (cerveja) ou "A. B. C. D." (máquinas/implementos). Aceita ambos.
+HEADER_ABCD = re.compile(r"^[A-G][\)\.]\s+\S", re.MULTILINE)
 
 
 def tem_formato_abcd(texto: str) -> bool:
@@ -67,7 +68,7 @@ def extrair_secao_abcd_varejista(texto: str) -> str | None:
     if not tem_formato_abcd(texto):
         return None
 
-    headers = list(re.finditer(r"^([A-G])\)\s+([^\n]+)", texto, re.MULTILINE))
+    headers = list(re.finditer(r"^([A-G])[\)\.]\s+([^\n]+)", texto, re.MULTILINE))
     if not headers:
         return None
 
