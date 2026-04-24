@@ -15,6 +15,7 @@ Regra de negócio (informada pelo usuário):
 from __future__ import annotations
 
 import re
+from typing import Literal
 
 
 ALIQUOTA_ZERO_PATTERNS = [
@@ -110,6 +111,51 @@ def tem_pis_cofins(texto: str) -> bool:
     return len(percentuais_pos) > 0
 
 
+def detectar_multiplas_secoes(texto: str) -> bool:
+    """Detecta se a célula tem múltiplas seções por tipo de contribuinte."""
+    marcadores = [
+        r"\bcontribuinte\b",
+        r"n[ãa]o\s+contribuinte",
+        r"\bimportador\b",
+        r"\bindustrial\b",
+        r"\bprodutor\b",
+    ]
+    encontradas = sum(1 for p in marcadores if re.search(p, texto, re.IGNORECASE))
+    return encontradas >= 2
+
+
+def calcular_confianca(
+    texto_bruto: str, trecho_relevante: str
+) -> tuple[Literal["alta", "baixa"], str | None]:
+    """
+    Retorna (confianca, motivo_revisao).
+
+    "alta" → decisão baseada em regra clara e texto bem estruturado.
+    "baixa" → algum passo de parsing foi ambíguo; humano deve revisar.
+    """
+    if not texto_bruto:
+        return "baixa", "Texto PIS/COFINS vazio"
+
+    if detectar_multiplas_secoes(texto_bruto):
+        if not SECAO_NAO_CONTRIBUINTE.search(texto_bruto):
+            return "baixa", "Múltiplas seções sem 'Não Contribuinte' identificada"
+        if not SUBSECAO_COMERCIANTE.search(texto_bruto):
+            return (
+                "baixa",
+                "Seção 'Não Contribuinte' presente mas sem subseção "
+                "'Comerciante atacadista ou varejista'",
+            )
+
+    percentuais = percentuais_positivos(trecho_relevante)
+    tem_zero = any(
+        re.search(pat, trecho_relevante.lower()) for pat in ALIQUOTA_ZERO_PATTERNS
+    )
+    if not percentuais and not tem_zero:
+        return "baixa", "Sem alíquotas ou padrão zero/isento no trecho relevante"
+
+    return "alta", None
+
+
 def extrair_aliquotas(texto: str) -> dict:
     """
     Extrai alíquotas de PIS e COFINS dos regimes Cumulativo e Não Cumulativo.
@@ -118,7 +164,7 @@ def extrair_aliquotas(texto: str) -> dict:
       "Regime Cumulativo: 0,65% e 3,00%"
       "Regime Não Cumulativo: 1,65% e 7,6%"
     """
-    out = {
+    out: dict[str, str | None] = {
         "aliquota_pis_cumulativo": None,
         "aliquota_cofins_cumulativo": None,
         "aliquota_pis_nao_cumulativo": None,

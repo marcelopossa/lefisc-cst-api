@@ -1,0 +1,23 @@
+{
+  "_comentario": "NCMs com CST correto confirmado manualmente. Usado para validar o parser e guiar refinamentos de regra.",
+  "_campos": {
+    "ncm": "NCM de 8 dígitos (sem pontos/traços)",
+    "cst_esperado": "1 = tributado normal, 4 = alíquota zero/monofásico/isento",
+    "tipo": "simples | multiplas_secoes | monofasico | aliquota_zero | isento",
+    "descricao": "descrição livre do produto (ajuda identificar padrão)",
+    "raw_text": "texto bruto da célula PIS/COFINS capturado do Lefisc (preencher após consulta)",
+    "confianca_esperada": "alta | baixa (opcional — preencher se quiser testar o scoring)",
+    "observacoes": "qualquer detalhe relevante sobre a regra aplicada"
+  },
+  "fixtures": [
+    {
+      "ncm": "48219000",
+      "cst_esperado": 1,
+      "tipo": "simples",
+      "descricao": "Etiquetas de papel, impressas",
+      "raw_text": "",
+      "confianca_esperada": "alta",
+      "observacoes": "Regime Cumulativo 0,65%/3,00% + Não Cumulativo 1,65%/7,6% — tributado normalmente"
+    }
+  ]
+}

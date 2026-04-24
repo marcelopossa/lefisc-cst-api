@@ -17,6 +17,7 @@ from cachetools import TTLCache
 
 from app.config import settings
 from app.models import CSTResponse
+from app.parser import calcular_confianca
 from app.scraper import NCMResult, scraper
 
 logger = logging.getLogger(__name__)
@@ -36,10 +37,14 @@ def normalizar_ncm(ncm: str) -> str:
 
 def _resultado_para_response(ncm_normalizado: str, r: NCMResult) -> CSTResponse:
     cst = 1 if r.possui_pis_cofins else 4
+    confianca, motivo = calcular_confianca(r.pis_cofins_texto, r.trecho_relevante)
     return CSTResponse(
         ncm=r.ncm or ncm_normalizado,
         cst=cst,
         possui_pis_cofins=r.possui_pis_cofins,
+        confianca=confianca,
+        revisao_necessaria=(confianca == "baixa"),
+        motivo_revisao=motivo,
         descricao=r.descricao,
         aliquota_pis_cumulativo=r.aliquota_pis_cumulativo,
         aliquota_cofins_cumulativo=r.aliquota_cofins_cumulativo,

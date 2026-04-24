@@ -103,20 +103,21 @@ class LefiscScraper:
         await page.goto(settings.lefisc_login_url, wait_until="domcontentloaded")
 
         try:
-            await page.fill(
-                "input[type='text'], input[name*='user' i], input[id*='user' i]",
-                settings.lefisc_username,
-            )
-            await page.fill("input[type='password']", settings.lefisc_password)
-            await page.click(
-                "button:has-text('Entrar'), input[type='submit'], button[type='submit']"
-            )
+            # Aguarda Vue renderizar o botão (SPA — domcontentloaded não é suficiente)
+            await page.wait_for_selector("button:has-text('Fazer Login')", state="visible", timeout=30000)
+            await page.click("button:has-text('Fazer Login')")
+            await page.wait_for_selector("#username", state="visible", timeout=20000)
+
+            await page.fill("#username", settings.lefisc_username)
+            await page.fill("#password", settings.lefisc_password)
+            await page.locator("button.r").click()
+            # Aguarda modal fechar — timeout generoso para conexões lentas (VPN)
+            await page.wait_for_selector("#username", state="hidden", timeout=90000)
         except Exception as e:
             logger.warning("Seletores de login falharam — capturando screenshot: %s", e)
             await page.screenshot(path="login_debug.png")
             raise
 
-        await page.wait_for_load_state("networkidle")
         self._logged_in = True
         logger.info("Login realizado com sucesso")
 
@@ -133,16 +134,22 @@ class LefiscScraper:
             page = self._page
 
             logger.info("Consultando NCM %s", ncm)
-            await page.goto(settings.lefisc_ncm_url, wait_until="domcontentloaded")
+            await page.goto(settings.lefisc_ncm_url, wait_until="commit")
+            await page.wait_for_timeout(3000)  # garante cookies após login SPA
+            logger.info("URL após goto NCM: %s", page.url)
+            await page.screenshot(path="ncm_debug.png")
 
-            search_input = page.locator(
-                "input[placeholder*='NCM' i], input[type='search'], input[type='text']"
-            ).first
+            # Aguarda input E botão — o JS pode demorar a renderizá-los em VPN lenta
+            search_input = page.locator("input[placeholder*='NCM' i]").first
+            buscar_btn = page.locator("button:has-text('Buscar')")
+            await search_input.wait_for(state="visible", timeout=60000)
+            await buscar_btn.wait_for(state="visible", timeout=60000)
+
             await search_input.fill(ncm)
-            await page.click(
-                "button:has-text('Buscar'), input[type='submit'][value*='Buscar' i]"
-            )
-            await page.wait_for_load_state("networkidle")
+            await buscar_btn.click()
+
+            # Aguarda a tabela ter pelo menos uma linha de dados (não só o header)
+            await page.wait_for_selector("table tr td", state="visible", timeout=60000)
 
             return await self._extrair_resultado(page, ncm)
 

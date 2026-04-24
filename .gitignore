@@ -10,3 +10,10 @@ venv/
 *.log
 playwright-report/
 test-results/
+
+# Artefatos de debug do scraper
+*.mp4
+*.mp4:Zone.Identifier
+login_debug.png
+ncm_debug.png
+pytest-cache-files-*/

@@ -1,5 +1,5 @@
 """Modelos Pydantic para request/response."""
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -9,6 +9,19 @@ class CSTResponse(BaseModel):
     ncm: str = Field(..., description="NCM consultado (pode estar normalizado)")
     cst: int = Field(..., description="CST resultante: 1 (tributado) ou 4 (alíquota zero/monofásico)")
     possui_pis_cofins: bool = Field(..., description="Se possui alíquota PIS/COFINS > 0")
+    confianca: Literal["alta", "baixa"] = Field(
+        ...,
+        description=(
+            "'alta' = regra aplicada com clareza; "
+            "'baixa' = parsing ambíguo, revisar manualmente"
+        ),
+    )
+    revisao_necessaria: bool = Field(
+        ..., description="True quando confianca='baixa' — caso deve ser revisado"
+    )
+    motivo_revisao: Optional[str] = Field(
+        None, description="Explica por que a confiança é baixa (ausente quando alta)"
+    )
     descricao: Optional[str] = Field(None, description="Descrição do NCM")
     aliquota_pis_cumulativo: Optional[str] = Field(None, description="Ex: '0,65%'")
     aliquota_cofins_cumulativo: Optional[str] = Field(None, description="Ex: '3,00%'")
