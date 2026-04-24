@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # Cache (SQLite persistente)
     cache_ttl_seconds: int = 86400
     cache_db_path: str = "cache.db"
+    # A cada N horas uma background task remove entradas expiradas do cache.
+    # Expiração já é lazy (no acesso), mas o purge mantém o arquivo compacto.
+    cache_purge_interval_hours: int = 6
 
 
 settings = Settings()

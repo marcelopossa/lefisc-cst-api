@@ -80,3 +80,8 @@ async def consultar_cst(ncm: str) -> CSTResponse:
 def limpar_cache() -> int:
     """Esvazia o cache e retorna quantas entradas foram removidas."""
     return _cache.clear()
+
+
+def purgar_expirados() -> int:
+    """Remove só as entradas expiradas. Retorna quantas foram removidas."""
+    return _cache.purge_expired()

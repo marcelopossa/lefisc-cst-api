@@ -24,7 +24,7 @@ from app.models import (
     ErrorResponse,
 )
 from app.scraper import scraper
-from app.service import consultar_cst, limpar_cache
+from app.service import consultar_cst, limpar_cache, purgar_expirados
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,14 +33,40 @@ logging.basicConfig(
 logger = logging.getLogger("lefisc-cst-api")
 
 
+async def _purge_cache_loop(interval_seconds: int) -> None:
+    """Loop periódico que remove entradas expiradas do cache SQLite."""
+    while True:
+        try:
+            await asyncio.sleep(interval_seconds)
+            removidos = purgar_expirados()
+            if removidos:
+                logger.info("Purge periódico do cache: %d entrada(s) expirada(s) removida(s)", removidos)
+            else:
+                logger.debug("Purge periódico do cache: nada a remover")
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Falha no purge periódico do cache — segue executando")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Inicia/encerra o browser junto com a API."""
+    """Inicia/encerra o browser e a task de purge junto com a API."""
     logger.info("Iniciando scraper (Playwright)...")
     await scraper.start()
+    purge_interval = settings.cache_purge_interval_hours * 3600
+    purge_task = asyncio.create_task(_purge_cache_loop(purge_interval))
+    logger.info(
+        "Purge periódico do cache ativo: a cada %dh", settings.cache_purge_interval_hours
+    )
     try:
         yield
     finally:
+        purge_task.cancel()
+        try:
+            await purge_task
+        except asyncio.CancelledError:
+            pass
         logger.info("Encerrando scraper...")
         await scraper.stop()
 
@@ -125,6 +151,14 @@ async def post_cst_batch(req: BatchRequest) -> BatchResponse:
 @app.post("/cache/clear")
 async def cache_clear() -> dict:
     removidos = limpar_cache()
+    return {"removidos": removidos}
+
+
+@app.post("/cache/purge-expired")
+async def cache_purge_expired() -> dict:
+    """Remove só as entradas expiradas. Roda automaticamente a cada
+    CACHE_PURGE_INTERVAL_HORAS — este endpoint é útil pra disparar sob demanda."""
+    removidos = purgar_expirados()
     return {"removidos": removidos}
 
 
